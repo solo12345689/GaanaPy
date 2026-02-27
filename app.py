@@ -6,7 +6,7 @@ from typing import Optional
 app = FastAPI()
 gaanapy = GaanaPy()
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def home():
     return {"Docs": "/docs", "Github": 'https://github.com/ZingyTomato/GaanaPy'}
 
