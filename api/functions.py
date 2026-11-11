@@ -1,6 +1,5 @@
-import asyncio
+import binascii
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
 import base64
 
 class Functions:
@@ -9,54 +8,78 @@ class Functions:
         self.BLOCK_SIZE = 16
     
     async def decryptLink(self, encrypted_data: str) -> str:
-        encrypted_data = encrypted_data.strip()
-        ## This master key can possibly keep changing.
-        KEY = b'gy1t#b@jl(b$wtme' 
-        offset = int(encrypted_data[0]) ## Calculate offset from the first character.
-        
-        ## Extract the raw IV using the offset.
-        ivRaw = encrypted_data[offset:offset + self.BLOCK_SIZE]
-        iv = ivRaw.encode("utf-8")
-        
-        ## Calculate ciphertext.
-        cipher_text_b64 = encrypted_data[offset + self.BLOCK_SIZE:]
-        cipher_bytes = base64.b64decode(cipher_text_b64)
-        
-        ## Decrypt ciphertext to get final URL.
-        cipher = AES.new(KEY, AES.MODE_CBC, iv)
-        decrypted = unpad(cipher.decrypt(cipher_bytes), self.BLOCK_SIZE)
-        
-        return decrypted.decode("utf-8") 
+        try:
+            encrypted_data = encrypted_data.strip()
+            ## This master key can possibly keep changing.
+            KEY = b'gy1t#b@jl(b$wtme'
+            offset = int(encrypted_data[0]) ## Calculate offset from the first character.
+
+            ## Extract the raw IV using the offset.
+            ivRaw = encrypted_data[offset:offset + self.BLOCK_SIZE]
+            iv = ivRaw.encode("utf-8")
+
+            ## Calculate ciphertext.
+            cipher_text_b64 = encrypted_data[offset + self.BLOCK_SIZE:]
+            cipher_bytes = base64.b64decode(cipher_text_b64)
+
+            ## Decrypt ciphertext to get final URL.
+            cipher = AES.new(KEY, AES.MODE_CBC, iv)
+            decrypted = cipher.decrypt(cipher_bytes)
+
+            ## Older responses use PKCS#7 padding; current responses may not.
+            padding_length = decrypted[-1]
+            if (
+                1 <= padding_length <= self.BLOCK_SIZE
+                and decrypted.endswith(bytes([padding_length]) * padding_length)
+            ):
+                decrypted = decrypted[:-padding_length]
+
+            return decrypted.decode("utf-8")
+        except (
+            IndexError,
+            ValueError,
+            AttributeError,
+            TypeError,
+            UnicodeDecodeError,
+            binascii.Error,
+        ):
+            return ""
 
     async def findArtistNames(self, results: list) -> str:
-        artists = []
-        for i in results:
-            artists.append(i['name'])
-        return ', '.join(artists)
+        try:
+            artists = []
+            for i in results:
+                artists.append(i['name'])
+            return ', '.join(artists)
+        except (KeyError, TypeError):
+            return ""
 
     async def findArtistSeoKeys(self, results: list) -> str:
-        seokeys = []
-        for i in results:
-            seokeys.append(i['seokey'])
-        return ', '.join(seokeys)
+        try:
+            seokeys = []
+            for i in results:
+                seokeys.append(i['seokey'])
+            return ', '.join(seokeys)
+        except (KeyError, TypeError):
+            return ""
 
     async def findArtistIds(self, results: list) -> str:
-        ids = []
-        for i in results:
-            ids.append(i['artist_id'])
-        return ', '.join(ids)
+        try:
+            ids = []
+            for i in results:
+                ids.append(i['artist_id'])
+            return ', '.join(ids)
+        except (KeyError, TypeError):
+            return ""
 
-    async def findGenres(self, results: list) -> str:  
+    async def findGenres(self, results: list) -> str:
         genres = []
         for i in results:
             try:
                 genres.append(i['name'])
-            except ValueError:
-                return ""
+            except (KeyError, ValueError):
+                continue
         return ', '.join(genres)
 
-    async def isExplicit(self, explicit: int) -> bool: 
-        if explicit == 1:
-            return True
-        else:
-            return False 
+    async def isExplicit(self, explicit: int) -> bool:
+        return explicit == 1
